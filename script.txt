@@ -1,10 +1,20 @@
 local CoreGui = game:GetService("CoreGui")
 local HttpService = game:GetService("HttpService")
 
--- // Очистка
-if CoreGui:FindFirstChild("Gemini_V60_Final") then CoreGui.Gemini_V60_Final:Destroy() end
-if CoreGui:FindFirstChild("Gemini_Chams_Storage") then CoreGui.Gemini_Chams_Storage:Destroy() end
+-- // ТОТАЛЬНАЯ ОЧИСТКА ВСЕХ СТАРЫХ ВЕРСИЙ
+for _, v in pairs(CoreGui:GetChildren()) do
+    if string.match(v.Name, "^Gemini_") then
+        v:Destroy()
+    end
+end
 if workspace:FindFirstChild("Gemini_3D_Chams") then workspace.Gemini_3D_Chams:Destroy() end
+if workspace:FindFirstChild("Gemini_ChinaHat") then workspace.Gemini_ChinaHat:Destroy() end
+
+local Lighting = game:GetService("Lighting")
+if Lighting:FindFirstChild("GeminiSaturation") then Lighting.GeminiSaturation:Destroy() end
+if Lighting:FindFirstChild("GeminiVibeBloom") then Lighting.GeminiVibeBloom:Destroy() end
+if Lighting:FindFirstChild("GeminiVibeCC") then Lighting.GeminiVibeCC:Destroy() end
+if Lighting:FindFirstChild("GeminiVibeBlur") then Lighting.GeminiVibeBlur:Destroy() end
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -12,7 +22,6 @@ local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local Stats = game:GetService("Stats")
-local Lighting = game:GetService("Lighting")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
@@ -38,15 +47,20 @@ local lastRealJumpTime = 0
 local lastKillStrafeJumpTime = 0
 local lastCriticalJumpTime = 0
 
--- // ЭФФЕКТЫ ОСВЕЩЕНИЯ
-local SaturationEffect = Lighting:FindFirstChild("GeminiSaturation")
-if not SaturationEffect then
-    SaturationEffect = Instance.new("ColorCorrectionEffect")
-    SaturationEffect.Name = "GeminiSaturation"
-    SaturationEffect.Parent = Lighting
-end
+-- // ЭФФЕКТЫ ОСВЕЩЕНИЯ И ШЕЙДЕРЫ
+local SaturationEffect = Instance.new("ColorCorrectionEffect")
+SaturationEffect.Name = "GeminiSaturation"; SaturationEffect.Parent = Lighting; SaturationEffect.Enabled = false
 
--- // КОНФИГ 
+local VibeBloom = Instance.new("BloomEffect")
+VibeBloom.Name = "GeminiVibeBloom"; VibeBloom.Intensity = 1.2; VibeBloom.Size = 35; VibeBloom.Threshold = 0.5; VibeBloom.Parent = Lighting; VibeBloom.Enabled = false
+
+local VibeCC = Instance.new("ColorCorrectionEffect")
+VibeCC.Name = "GeminiVibeCC"; VibeCC.Contrast = 0.25; VibeCC.Saturation = 0.4; VibeCC.Parent = Lighting; VibeCC.Enabled = false
+
+local VibeBlur = Instance.new("BlurEffect")
+VibeBlur.Name = "GeminiVibeBlur"; VibeBlur.Size = 3; VibeBlur.Parent = Lighting; VibeBlur.Enabled = false
+
+-- // КОНФИГ
 _G.Cfg = {
     UITheme = "Dark",
     AimbotEnabled = false, AimbotMaxDistance = 1000, AimbotSmoothness = 1, AimbotEnabledBind = "None",
@@ -59,7 +73,7 @@ _G.Cfg = {
     StrafeEnabled = false, StrafeEnabledBind = "None",
     NoClipEnabled = false, NoClipEnabledBind = "None",
     SpiderEnabled = false, SpiderEnabledBind = "None", SpiderSpeed = 45,
-    JitterEnabled = false, JitterRange = 45, JitterSpeed = 15, JitterYawMode = 1, JitterEnabledBind = "None",
+    JitterEnabled = false, JitterRange = 45, JitterSpeed = 15, JitterYawMode = 1, JitterSpinAtJump = false, JitterSpinSpeed = 20, JitterEnabledBind = "None",
     AnimLagEnabled = false, AnimLagFPS = 5, AnimLagEnabledBind = "None",
     HitSoundEnabled = false, HitSoundMode = 1, HitSoundEnabledBind = "None",
     TargetESPSquareEnabled = false, TargetESPSquareSize = 110, TargetESPBorderThickness = 6.5, TargetESPSquareColor = Color3.new(1, 1, 1), TargetESPDamageColorEnabled = false, TargetESPDamageColor = Color3.fromRGB(255, 0, 0), TargetESPRotationSpeed = 1, TargetESPSquareEnabledBind = "None", TargetESPOnlyKillaura = false,
@@ -75,7 +89,7 @@ _G.Cfg = {
     SaturationEnabled = false, SaturationValue = 1, SaturationEnabledBind = "None",
     ClickFriendEnabled = false, ClickFriendEnabledBind = "None",
     DeleteFriendEnabled = false, DeleteFriendEnabledBind = "None",
-    WorldColorEnabled = false, WorldColorValue = Color3.fromRGB(255, 0, 0), WorldColorTransparency = 0.5, WorldColorDarkness = 0, WorldColorEnabledBind = "None",
+    WorldColorEnabled = false, WorldColorValue = Color3.fromRGB(255, 0, 0), WorldColorTransparency = 0.5, WorldColorDarkness = 0, WorldColorShader = false, WorldColorEnabledBind = "None",
     AspectRatioValue = 80,
     CustomFovEnabled = false, CustomFovValue = 100, CustomFovEnabledBind = "None",
     ThirdPersonEnabled = false, ThirdPersonDistance = 15, ThirdPersonEnabledBind = "None",
@@ -96,7 +110,7 @@ local ConfigLayout = {
     "StrafeEnabled", "StrafeEnabledBind",
     "NoClipEnabled", "NoClipEnabledBind",
     "SpiderEnabled", "SpiderEnabledBind", "SpiderSpeed",
-    "JitterEnabled", "JitterRange", "JitterSpeed", "JitterYawMode", "JitterEnabledBind",
+    "JitterEnabled", "JitterRange", "JitterSpeed", "JitterYawMode", "JitterSpinAtJump", "JitterSpinSpeed", "JitterEnabledBind",
     "AnimLagEnabled", "AnimLagFPS", "AnimLagEnabledBind",
     "HitSoundEnabled", "HitSoundMode", "HitSoundEnabledBind",
     "TargetESPSquareEnabled", "TargetESPSquareSize", "TargetESPBorderThickness", "TargetESPSquareColor", "TargetESPDamageColorEnabled", "TargetESPDamageColor", "TargetESPRotationSpeed", "TargetESPSquareEnabledBind", "TargetESPOnlyKillaura",
@@ -111,7 +125,7 @@ local ConfigLayout = {
     "SaturationEnabled", "SaturationValue", "SaturationEnabledBind",
     "ClickFriendEnabled", "ClickFriendEnabledBind",
     "DeleteFriendEnabled", "DeleteFriendEnabledBind",
-    "WorldColorEnabled", "WorldColorValue", "WorldColorTransparency", "WorldColorDarkness", "WorldColorEnabledBind",
+    "WorldColorEnabled", "WorldColorValue", "WorldColorTransparency", "WorldColorDarkness", "WorldColorShader", "WorldColorEnabledBind",
     "AspectRatioValue",
     "CustomFovEnabled", "CustomFovValue", "CustomFovEnabledBind",
     "ThirdPersonEnabled", "ThirdPersonDistance", "ThirdPersonEnabledBind",
@@ -128,7 +142,7 @@ local Themes = {
     Glass = { name = "Glass", bg = Color3.fromRGB(10, 10, 10), trans = 0.65, stroke = Color3.fromRGB(80, 80, 80), text = Color3.new(1,1,1), textSec = Color3.fromRGB(220,220,220), inputBg = Color3.fromRGB(30,30,30), accent = Color3.fromRGB(50,50,50) }
 }
 
-local ConfigFileName = "Gemini_V62_Config.json"
+local ConfigFileName = "Gemini_V66_Config.json"
 local function SaveConfig()
     local copy = {}
     for k, v in pairs(_G.Cfg) do
@@ -165,7 +179,7 @@ end))
 local HitSounds = { [1] = "rbxassetid://140604838213617", [2] = "rbxassetid://130201387574815", [3] = "rbxassetid://135478009117226", [4] = "rbxassetid://96735711388006", [5] = "rbxassetid://126048302910782", [6] = "rbxassetid://7255642553" }
 
 local GeminiGui = Instance.new("ScreenGui", CoreGui)
-GeminiGui.Name = "Gemini_V60_Final"
+GeminiGui.Name = "Gemini_V66_Final"
 GeminiGui.IgnoreGuiInset = true
 GeminiGui.ResetOnSpawn = false 
 
@@ -248,7 +262,6 @@ local function GetEspElements(player)
     if not EspCache[player] then
         local cache = {}
         
-        -- 2D Box
         local esp2DBox = Instance.new("Frame", Esp2DFolder)
         esp2DBox.Name = player.Name .. "_2DBox"
         esp2DBox.BackgroundTransparency = 1
@@ -285,7 +298,6 @@ local function GetEspElements(player)
         cache.HealthFill = hbFill
         cache.HealthGradF = hbGradientFrame
 
-        -- 3D Chams
         local boxESP = Instance.new("Part", Chams3DFolder)
         boxESP.Name = player.Name .. "_3DBox"
         boxESP.Size = Vector3.new(4.5, 6, 1.5)
@@ -295,7 +307,6 @@ local function GetEspElements(player)
         cache.Box3D = boxESP
         cache.ChamsHighlight = hl
 
-        -- Arrows
         local arrowUI = Instance.new("Frame", ArrowsFolder)
         arrowUI.Name = player.Name .. "_Arrow"
         arrowUI.Size = UDim2.new(0, 40, 0, 40)
@@ -335,10 +346,17 @@ local IslandStroke = Instance.new("UIStroke", Island); IslandStroke.Thickness = 
 local IslandTitle = Instance.new("TextLabel", Island); IslandTitle.Size = UDim2.new(0.5, 0, 1, 0); IslandTitle.Position = UDim2.new(0, 15, 0, 0); IslandTitle.BackgroundTransparency = 1; IslandTitle.Text = "тгк: extazz_scripts"; IslandTitle.Font = TARGET_FONT; IslandTitle.TextSize = 14; IslandTitle.TextColor3 = Color3.new(1, 1, 1); IslandTitle.TextXAlignment = "Left"; table.insert(ThemeObjects.Texts, IslandTitle)
 local StatsLabel = Instance.new("TextLabel", Island); StatsLabel.Size = UDim2.new(0.5, 0, 1, 0); StatsLabel.Position = UDim2.new(0.5, -10, 0, 0); StatsLabel.BackgroundTransparency = 1; StatsLabel.Text = "FPS: 0 | PING: 0ms"; StatsLabel.Font = TARGET_FONT; StatsLabel.TextSize = 12; StatsLabel.TextColor3 = Color3.fromRGB(200, 200, 200); StatsLabel.TextXAlignment = "Right"; table.insert(ThemeObjects.SecondaryTexts, StatsLabel)
 
+-- ДЕФОЛТНАЯ ВИДИМОСТЬ МЕНЮ ВКЛЮЧЕНА (Меню больше не невидимое при старте)
 local MainFrame = Instance.new("Frame", GeminiGui)
-MainFrame.Size = UDim2.new(0, 750, 0, 450); MainFrame.Position = UDim2.new(0.5, -375, 0.5, -180); MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20); MainFrame.Visible = false; MainFrame.BackgroundTransparency = 1; Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
+MainFrame.Size = UDim2.new(0, 750, 0, 450)
+MainFrame.Position = isMobile and UDim2.new(0.5, 0, 0.5, 0) or UDim2.new(0.5, -375, 0.5, -225)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+MainFrame.Visible = true 
+MainFrame.BackgroundTransparency = Themes[_G.Cfg.UITheme] and Themes[_G.Cfg.UITheme].trans or 0.1
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
 table.insert(ThemeObjects.Backgrounds, MainFrame)
-if isMobile then local uiScale = Instance.new("UIScale", MainFrame); uiScale.Scale = 0.65; MainFrame.AnchorPoint = Vector2.new(0.5, 0.5); MainFrame.Position = UDim2.new(0.5, 0, 0.5, 50) end
+
+if isMobile then local uiScale = Instance.new("UIScale", MainFrame); uiScale.Scale = 0.65; MainFrame.AnchorPoint = Vector2.new(0.5, 0.5) end
 local MainFrame_Glow = Instance.new("Frame", MainFrame); MainFrame_Glow.Size = UDim2.new(1, 4, 1, 4); MainFrame_Glow.Position = UDim2.new(0, -2, 0, -2); MainFrame_Glow.BackgroundColor3 = Color3.fromRGB(15, 15, 15); MainFrame_Glow.BackgroundTransparency = 0.5; MainFrame_Glow.ZIndex = MainFrame.ZIndex - 1; Instance.new("UICorner", MainFrame_Glow).CornerRadius = UDim.new(0, 10)
 local MainStroke = Instance.new("UIStroke", MainFrame); MainStroke.Thickness = 1; MainStroke.Color = Color3.fromRGB(45, 45, 45); table.insert(ThemeObjects.Strokes, MainStroke)
 
@@ -371,13 +389,27 @@ for i, cat in ipairs(categories) do
     catButtons[cat] = btn; btn.MouseButton1Click:Connect(function() SwitchCategory(cat) end)
 end
 
-local MenuOpen = false 
+local MenuOpen = true 
 local function ToggleMenu()
     MenuOpen = not MenuOpen; local t = Themes[_G.Cfg.UITheme] or Themes.Dark
-    if MenuOpen then MainFrame.Visible = true; TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {BackgroundTransparency = t.trans, Position = isMobile and UDim2.new(0.5, 0, 0.5, 0) or UDim2.new(0.5, -375, 0.5, -225)}):Play()
-    else local tw = TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {BackgroundTransparency = 1, Position = isMobile and UDim2.new(0.5, 0, 0.5, 50) or UDim2.new(0.5, -375, 0.5, -180)}); tw:Play(); tw.Completed:Connect(function() if not MenuOpen then MainFrame.Visible = false end end) end
+    if MenuOpen then 
+        MainFrame.Visible = true
+        TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {BackgroundTransparency = t.trans, Position = isMobile and UDim2.new(0.5, 0, 0.5, 0) or UDim2.new(0.5, -375, 0.5, -225)}):Play()
+    else 
+        local tw = TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {BackgroundTransparency = 1, Position = isMobile and UDim2.new(0.5, 0, 0.5, 50) or UDim2.new(0.5, -375, 0.5, -180)})
+        tw:Play()
+        tw.Completed:Connect(function() if not MenuOpen then MainFrame.Visible = false end end) 
+    end
 end
+
 Island.MouseButton1Click:Connect(ToggleMenu)
+
+-- БИНД НА КНОПКУ RightShift
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if not gpe and input.KeyCode == Enum.KeyCode.RightShift then
+        ToggleMenu()
+    end
+end)
 
 task.spawn(function()
     local renderFrames = 0; local lastTick = tick()
@@ -428,9 +460,16 @@ local function CreateModule(name, key, category)
         _G.Cfg[key] = not _G.Cfg[key]; ShowNotify(name, _G.Cfg[key])
         if key == "SpeedEnabled" and not _G.Cfg[key] then if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then LocalPlayer.Character.Humanoid.WalkSpeed = 16 end end
         if key == "ClickFriendEnabled" and _G.Cfg[key] then StartFriendProcess(false) elseif key == "DeleteFriendEnabled" and _G.Cfg[key] then StartFriendProcess(true) end
-        if key == "WorldColorEnabled" and not _G.Cfg[key] then Lighting.Ambient = Color3.fromRGB(128, 128, 128); Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128); Lighting.ExposureCompensation = 0 end
         if key == "FullBrightEnabled" and not _G.Cfg[key] then Lighting.Brightness = 1 end
         if key == "SaturationEnabled" then SaturationEffect.Enabled = _G.Cfg.SaturationEnabled end
+        if key == "WorldColorEnabled" and not _G.Cfg[key] then 
+            Lighting.Ambient = Color3.fromRGB(128, 128, 128)
+            Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
+            Lighting.ExposureCompensation = 0 
+            VibeBloom.Enabled = false
+            VibeCC.Enabled = false
+            VibeBlur.Enabled = false
+        end
         SaveConfig() 
     end
     _G.ToggleFuncs[key] = RunToggle; Toggle.MouseButton1Click:Connect(RunToggle)
@@ -452,6 +491,7 @@ local function AddToggle(parent, text, key)
     local btn = Instance.new("TextButton", f); btn.Size = UDim2.new(0, 30, 0, 12); btn.Position = UDim2.new(1, -40, 0, 3); btn.Text = ""; Instance.new("UICorner", btn).CornerRadius = UDim.new(1,0)
     btn.BackgroundColor3 = _G.Cfg[key] and Color3.new(0, 0.8, 0) or Color3.new(0.8, 0, 0)
     btn.MouseButton1Click:Connect(function() _G.Cfg[key] = not _G.Cfg[key]; btn.BackgroundColor3 = _G.Cfg[key] and Color3.new(0, 0.8, 0) or Color3.new(0.8, 0, 0); SaveConfig() end)
+    return f
 end
 
 local function AddSlider(parent, text, key)
@@ -459,11 +499,13 @@ local function AddSlider(parent, text, key)
     local l = Instance.new("TextLabel", f); l.Size = UDim2.new(0.6, 0, 1, 0); l.Text = "  " .. text; l.TextColor3 = Color3.new(0.6,0.6,0.6); l.BackgroundTransparency = 1; l.TextXAlignment = "Left"; l.TextSize = 12; l.Font = TARGET_FONT; table.insert(ThemeObjects.SecondaryTexts, l)
     local i = Instance.new("TextBox", f); i.Size = UDim2.new(0, 45, 0.9, 0); i.Position = UDim2.new(1, -50, 0, 0); i.Text = tostring(_G.Cfg[key]); i.BackgroundColor3 = Color3.fromRGB(40,40,40); i.TextColor3 = Color3.new(1,1,1); i.TextSize = 10; i.Font = TARGET_FONT; table.insert(ThemeObjects.Inputs, i)
     i.FocusLost:Connect(function() local v = tonumber(i.Text); if v then _G.Cfg[key] = v; SaveConfig() end end)
+    return f
 end
 
 local function AddColorBtn(parent, text, key)
     local b = Instance.new("TextButton", parent); b.Size = UDim2.new(1, 0, 0, 18); b.Text = "  [COLOR] " .. text; b.BackgroundColor3 = Color3.fromRGB(40, 40, 50); b.TextColor3 = Color3.new(1,1,1); b.TextXAlignment = "Left"; b.TextSize = 12; b.Font = TARGET_FONT; table.insert(ThemeObjects.InputBackgrounds, b); table.insert(ThemeObjects.Texts, b)
     b.MouseButton1Click:Connect(function() curKey = key; CPFrame.Visible = true end)
+    return b
 end
 
 local function IsVisible(targetPart)
@@ -590,7 +632,6 @@ table.insert(Connections, RunService.Stepped:Connect(function(time, dt)
         if hrp then for _, v in ipairs(hrp:GetChildren()) do if v:IsA("BodyVelocity") or v:IsA("BodyThrust") or v:IsA("BodyForce") or v:IsA("LinearVelocity") or v:IsA("VectorForce") then v:Destroy() end end end
     end
     
-    -- // ANIM LAG LOGIC
     if _G.Cfg.AnimLagEnabled and LocalPlayer.Character then
         local char = LocalPlayer.Character
         local hum = char:FindFirstChild("Humanoid")
@@ -654,6 +695,37 @@ task.spawn(function()
     end
 end)
 
+task.spawn(function()
+    while task.wait(0.5) do
+        if _G.Cfg.WorldColorEnabled then
+            local baseColor = _G.Cfg.WorldColorValue
+            local trans = math.clamp(_G.Cfg.WorldColorTransparency, 0, 1)
+            local dark = math.clamp(_G.Cfg.WorldColorDarkness, 0, 5)
+            local defaultAmbient = Color3.fromRGB(128, 128, 128)
+            local blendedColor = defaultAmbient:Lerp(baseColor, trans)
+            
+            Lighting.Ambient = blendedColor
+            Lighting.OutdoorAmbient = blendedColor
+            Lighting.ExposureCompensation = -dark
+
+            if _G.Cfg.WorldColorShader then
+                VibeBloom.Enabled = true
+                VibeCC.Enabled = true
+                VibeBlur.Enabled = true
+                VibeCC.TintColor = Color3.new(1, 1, 1):Lerp(baseColor, 0.35) 
+            else
+                VibeBloom.Enabled = false
+                VibeCC.Enabled = false
+                VibeBlur.Enabled = false
+            end
+        else
+            VibeBloom.Enabled = false
+            VibeCC.Enabled = false
+            VibeBlur.Enabled = false
+        end
+    end
+end)
+
 table.insert(Connections, RunService.RenderStepped:Connect(function(dt)
     local target = GetTarget() 
     local char = LocalPlayer.Character
@@ -668,7 +740,6 @@ table.insert(Connections, RunService.RenderStepped:Connect(function(dt)
     if _G.Cfg.TimeChangerEnabled then Lighting.ClockTime = math.clamp(_G.Cfg.TimeChangerHours, 0, 23) end
     if _G.Cfg.FullBrightEnabled then Lighting.Brightness = math.clamp(_G.Cfg.FullBrightBrightness, 0, 10) end
     
-    -- // ПРИНУДИТЕЛЬНЫЙ THIRD PERSON
     if _G.Cfg.ThirdPersonEnabled then
         LocalPlayer.CameraMode = Enum.CameraMode.Classic
         LocalPlayer.CameraMaxZoomDistance = _G.Cfg.ThirdPersonDistance or 15
@@ -730,11 +801,6 @@ table.insert(Connections, RunService.RenderStepped:Connect(function(dt)
             end
             if touching then hrp.AssemblyLinearVelocity = Vector3.new(hrp.AssemblyLinearVelocity.X, tonumber(_G.Cfg.SpiderSpeed) or 45, hrp.AssemblyLinearVelocity.Z) end
         end
-    end
-    if _G.Cfg.WorldColorEnabled then
-        local baseColor = _G.Cfg.WorldColorValue; local trans = math.clamp(_G.Cfg.WorldColorTransparency, 0, 1); local dark = math.clamp(_G.Cfg.WorldColorDarkness, 0, 5)
-        local defaultAmbient = Color3.fromRGB(128, 128, 128); local blendedColor = defaultAmbient:Lerp(baseColor, trans)
-        Lighting.Ambient = blendedColor; Lighting.OutdoorAmbient = blendedColor; Lighting.ExposureCompensation = -dark
     end
 
     for _, player in ipairs(Players:GetPlayers()) do
@@ -904,7 +970,6 @@ table.insert(Connections, RunService.RenderStepped:Connect(function(dt)
 
     local didRotateHRP = false
     
-    -- // ПРОВЕРКА KILL AURA
     if _G.Cfg.KillAuraEnabled and char and char:FindFirstChild("HumanoidRootPart") then
         local kaTarget = currentKaTarget
         if kaTarget and kaTarget.Character and kaTarget.Character:FindFirstChild("HumanoidRootPart") then
@@ -937,7 +1002,6 @@ table.insert(Connections, RunService.RenderStepped:Connect(function(dt)
                     end
                 end
 
-                -- // ФИЗИЧЕСКИЙ SILENT AIM ИСКЛЮЧИТЕЛЬНО ЧЕРЕЗ БАЗОВЫЕ ЧАСТИ
                 if _G.Cfg.KillAuraNoCamRotation then
                     char.Humanoid.AutoRotate = false
                     hrp.CFrame = CFrame.lookAt(hrp.Position, Vector3.new(targetPart.Position.X, hrp.Position.Y, targetPart.Position.Z))
@@ -968,14 +1032,20 @@ table.insert(Connections, RunService.RenderStepped:Connect(function(dt)
         end
     end
 
-    -- // ФИЗИЧЕСКИЙ JITTER ЧЕРЕЗ БАЗОВЫЕ ЧАСТИ (БЕЗ СУСТАВОВ)
     if not didRotateHRP and _G.Cfg.JitterEnabled and char and char:FindFirstChild("Humanoid") and char:FindFirstChild("HumanoidRootPart") then
         local hrp = char.HumanoidRootPart
         char.Humanoid.AutoRotate = false 
-        local jitterSign = (math.floor(tick() * (_G.Cfg.JitterSpeed or 15)) % 2 == 0) and 1 or -1
-        local jitterYaw = math.rad(_G.Cfg.JitterRange or 45) * jitterSign
-        local baseYaw = (tonumber(_G.Cfg.JitterYawMode) == 2) and math.pi or 0
-        local totalYaw = baseYaw + jitterYaw
+        
+        local totalYaw = 0
+        
+        if _G.Cfg.JitterSpinAtJump and char.Humanoid.FloorMaterial == Enum.Material.Air then
+            totalYaw = tick() * (tonumber(_G.Cfg.JitterSpinSpeed) or 20)
+        else
+            local jitterSign = (math.floor(tick() * (_G.Cfg.JitterSpeed or 15)) % 2 == 0) and 1 or -1
+            local jitterYaw = math.rad(_G.Cfg.JitterRange or 45) * jitterSign
+            local baseYaw = (tonumber(_G.Cfg.JitterYawMode) == 2) and math.pi or 0
+            totalYaw = baseYaw + jitterYaw
+        end
         
         local lookVec = Camera.CFrame.LookVector
         if char.Humanoid.MoveDirection.Magnitude > 0 then
@@ -989,7 +1059,6 @@ table.insert(Connections, RunService.RenderStepped:Connect(function(dt)
         didRotateHRP = true
     end
     
-    -- Возвращаем AutoRotate если ни киллаура, ни джиттер не крутят персонажа
     if not didRotateHRP and char and char:FindFirstChild("Humanoid") then
         char.Humanoid.AutoRotate = true
     end
@@ -1102,7 +1171,14 @@ local mVel = CreateModule("VELOCITY (ANTI-KB)", "VelocityEnabled", "Movement"); 
 local mStrf = CreateModule("HARD STRAFE", "StrafeEnabled", "Movement")
 local mNoc = CreateModule("NOCLIP", "NoClipEnabled", "Movement")
 local mSpider = CreateModule("SPIDER", "SpiderEnabled", "Movement"); AddSlider(mSpider, "Speed", "SpiderSpeed")
-local mJitter = CreateModule("JITTER (ANTI-AIM)", "JitterEnabled", "Movement"); AddSlider(mJitter, "Range (Angle)", "JitterRange"); AddSlider(mJitter, "Speed (Freq)", "JitterSpeed"); AddSlider(mJitter, "Yaw Mode (1=Fwd, 2=Bwd)", "JitterYawMode")
+
+local mJitter = CreateModule("JITTER (ANTI-AIM)", "JitterEnabled", "Movement"); 
+AddSlider(mJitter, "Range (Angle)", "JitterRange"); 
+AddSlider(mJitter, "Speed (Freq)", "JitterSpeed"); 
+AddSlider(mJitter, "Yaw Mode (1=Fwd, 2=Bwd)", "JitterYawMode")
+AddToggle(mJitter, "Spin at jump", "JitterSpinAtJump")
+AddSlider(mJitter, "Spin Speed", "JitterSpinSpeed")
+
 local mAnimLag = CreateModule("ANIM LAG", "AnimLagEnabled", "Movement"); AddSlider(mAnimLag, "Anim FPS (1-60)", "AnimLagFPS")
 
 local mHud = CreateModule("TARGET HUD", "TargetHudEnabled", "Visuals"); AddColorBtn(mHud, "Normal HB color", "TargetHudNormalColor"); AddColorBtn(mHud, "Damage HB color", "TargetHudDamageColor"); AddToggle(mHud, "Only Killaura", "TargetHudOnlyKillaura")
@@ -1118,7 +1194,13 @@ local mSat = CreateModule("SATURATION", "SaturationEnabled", "Visuals"); AddSlid
 
 local mJmp = CreateModule("JUMP CIRCLES", "JumpVisualCirclesEnabled", "Visuals"); AddSlider(mJmp, "Max Size", "JumpCircleMaximumSize"); AddColorBtn(mJmp, "Color", "JumpCircleEffectColor")
 local mTime = CreateModule("TIME CHANGER", "TimeChangerEnabled", "Visuals"); AddSlider(mTime, "Hours (0-23)", "TimeChangerHours")
-local mWcl = CreateModule("WORLD COLOR", "WorldColorEnabled", "Visuals"); AddColorBtn(mWcl, "Map Color", "WorldColorValue"); AddSlider(mWcl, "Intensity (0-1)", "WorldColorTransparency"); AddSlider(mWcl, "Darkness (0-5)", "WorldColorDarkness")
+
+local mWcl = CreateModule("WORLD COLOR", "WorldColorEnabled", "Visuals"); 
+AddColorBtn(mWcl, "Map Color", "WorldColorValue"); 
+AddSlider(mWcl, "Intensity (0-1)", "WorldColorTransparency"); 
+AddSlider(mWcl, "Darkness (0-5)", "WorldColorDarkness");
+AddToggle(mWcl, "Shader (Vibe)", "WorldColorShader")
+
 local mHitS = CreateModule("HIT SOUND", "HitSoundEnabled", "Visuals"); AddSlider(mHitS, "Sound (1-6)", "HitSoundMode")
 local mFov = CreateModule("CUSTOM FOV", "CustomFovEnabled", "Visuals"); AddSlider(mFov, "FOV Value", "CustomFovValue")
 local mThird = CreateModule("THIRD PERSON", "ThirdPersonEnabled", "Visuals"); AddSlider(mThird, "Distance", "ThirdPersonDistance")
@@ -1236,7 +1318,11 @@ table.insert(moduleFrames, {frame = KillFrame, category = "Misc"}); table.insert
 local KillBtn = Instance.new("TextButton", KillFrame); KillBtn.Size = UDim2.new(1, -20, 0, 40); KillBtn.Position = UDim2.new(0, 10, 0.5, -20); KillBtn.Text = "KILL SCRIPT"; KillBtn.BackgroundColor3 = Color3.fromRGB(80, 20, 20); KillBtn.TextColor3 = Color3.new(1,1,1); KillBtn.Font = TARGET_FONT; KillBtn.TextSize = 16; Instance.new("UICorner", KillBtn)
 KillBtn.MouseButton1Click:Connect(function() 
     for _, c in pairs(Connections) do c:Disconnect() end 
-    GeminiGui:Destroy(); HatPart:Destroy(); ChamsFolder:Destroy(); if SaturationEffect then SaturationEffect:Destroy() end
+    GeminiGui:Destroy(); HatPart:Destroy(); ChamsFolder:Destroy();
+    if SaturationEffect then SaturationEffect:Destroy() end
+    if VibeBloom then VibeBloom:Destroy() end
+    if VibeCC then VibeCC:Destroy() end
+    if VibeBlur then VibeBlur:Destroy() end
     if workspace:FindFirstChild("Gemini_3D_Chams") then workspace.Gemini_3D_Chams:Destroy() end
 end)
 
